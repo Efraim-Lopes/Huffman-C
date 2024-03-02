@@ -3,22 +3,14 @@
 #include <math.h>
 #include <stdlib.h>
 
-struct base
-{
-    int frequencia;
-    char byte;
-    // Next
-    // Left
-    // Right
-};
-
 struct node
 {
     int item;
     int priority;
     struct node *next;
+    struct node *left;
+    struct node *right;
 };
-
 struct priority_queue
 {
     struct node *head;
@@ -38,6 +30,8 @@ void enqueue(struct priority_queue *pq, int item, int priority)
     struct node *new_node = (struct node *)malloc(sizeof(struct node));
     new_node->item = item;
     new_node->priority = priority;
+    new_node->right = NULL;
+    new_node->left = NULL;
     if ((is_empty(pq)) || (priority < pq->head->priority))
     {
         new_node->next = pq->head;
@@ -54,7 +48,24 @@ void enqueue(struct priority_queue *pq, int item, int priority)
         current->next = new_node;
     }
 }
-
+void enqueueWithNode(struct priority_queue *pq, struct node* no)
+{
+    if ((is_empty(pq)) || (no->priority < pq->head->priority))
+    {
+        no->next = pq->head;
+        pq->head = no;
+    }
+    else
+    {
+        struct node *current = pq->head;
+        while ((current->next != NULL) && (current->next->priority < no->priority))
+        {
+            current = current->next;
+        }
+        no->next = current->next;
+        current->next = no;
+    }
+}
 struct node *dequeue(struct priority_queue *pq)
 {
     if (is_empty(pq))
@@ -70,7 +81,6 @@ struct node *dequeue(struct priority_queue *pq)
         return node;
     }
 }
-
 void printByteBinary(unsigned char byte)
 {
     // Loop para percorrer cada bit do byte
@@ -103,12 +113,21 @@ void leFrequencia(int *array)
 
     fclose(file); // Fecha o arquivo.
 }
-
+void printPreOrder(struct node *node)
+{
+    if (node != NULL)
+    {
+        printf("%c %d\n", node->item, node->priority);
+        printPreOrder(node->left);
+        printPreOrder(node->right);
+    }
+}
 int main()
 {
     /*
         Dado um arquivo, lê seus bits, e conta a frequência de cada bit em um array.
-
+        Criar fila de prioridade.
+        Espaçar a fila em arvóres.
     */
     int frequencia[256]; // Array para armazenar a frequência de cada byte.
     leFrequencia(frequencia);
@@ -116,19 +135,21 @@ int main()
     struct priority_queue *pq = create_priority_queue(); // Criando a fila de prioridade.
 
     for (int x = 0; x < 256; x++)
-    {
-        if (frequencia[x] != 0)
-        {
-            enqueue(pq, x, frequencia[x]); // Adiciona o byte e sua frequência na fila de prioridade.
-        }
-    }
+        if (frequencia[x] != 0) enqueue(pq, x, frequencia[x]); // Adiciona o byte e sua frequência na fila de prioridade.
+    printf("\n");
 
-    while (pq->head != NULL)
-    {
-        struct node *node = dequeue(pq);
-        printf("Byte: ");
-        printByteBinary(node->item);
-        printf(" Frequencia: %d\n", node->priority);
+    while(pq->head->next != NULL){ // Espaçando a fila de prioridade em arvóres.
+        struct node *left = dequeue(pq);
+        struct node *right = dequeue(pq);
+        // s {1}
+        struct node *new_node = (struct node *)malloc(sizeof(struct node));
+        new_node->item = -1; // * = -1;
+        new_node->priority = left->priority + right->priority;
+        new_node->left = left;
+        new_node->right = right;
+        enqueueWithNode(pq, new_node);
     }
+    // Teoricamente espaçei a fila de prioridade em arvóres.
+    printPreOrder(pq->head);
     return 0;
 }
