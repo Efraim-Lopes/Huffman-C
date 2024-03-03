@@ -15,6 +15,11 @@ struct priority_queue
 {
     struct node *head;
 };
+void removeLastChar(char *s)
+{
+    int len = strlen(s);
+    s[len - 1] = '\0';
+}
 struct priority_queue *create_priority_queue()
 {
     struct priority_queue *new_priority_queue = (struct priority_queue *)malloc(sizeof(struct priority_queue));
@@ -50,7 +55,7 @@ void enqueue(struct priority_queue *pq, int item, int priority)
 }
 void enqueueWithNode(struct priority_queue *pq, struct node* no)
 {
-    if ((is_empty(pq)) || (no->priority < pq->head->priority))
+    if ((is_empty(pq)) || (no->priority <= pq->head->priority))
     {
         no->next = pq->head;
         pq->head = no;
@@ -92,12 +97,22 @@ void printByteBinary(unsigned char byte)
         printf("%d", (byte >> i) & 1);
     }
 }
-void leFrequencia(int *array)
+
+void printNewBinary(struct node *node, int byte, char *newBinary){
+    if(node != NULL){
+        if(node->item == byte) printf("%s", newBinary); // Printando o novo binário.
+        else{
+            printNewBinary(node->left, byte, strcat(newBinary, "0"));
+            printNewBinary(node->right, byte, strcat(newBinary, "1"));
+            removeLastChar(newBinary); // Remove o último caracter visto que ele já foi verificado.
+        }
+    }else removeLastChar(newBinary); // Tirar o último caracter do char que foi adicionado, visto que ele se refere a um nó NULO.
+    
+}
+void leFrequencia(int *array, char *minhaString)
 {
 
     memset(array, 0, 256 * sizeof(int));
-    char minhaString[30];
-    scanf("%s", minhaString);              // Lê o nome do arquivo pelo usuário.
     FILE *file = fopen(minhaString, "rb"); // Lê os bits do arquivo, 'rb' -> Read Binary
     if (file == NULL)
     { // Se o arquivo não existir, retorna erro.
@@ -115,9 +130,18 @@ void leFrequencia(int *array)
 }
 void printPreOrder(struct node *node)
 {
+    // Dado um nó, ao chegar na arvore imprimir a sequencia nova de 0 e 1.
+    // Se left -> +0
+    // Se right -> +1
     if (node != NULL)
     {
-        printf("%c %d\n", node->item, node->priority);
+        
+        if(node->item != '*'){
+            printByteBinary(node->item);
+            printf(" %d\n", node->priority);
+        }else{
+            printf("* %d\n", node->priority);
+        }
         printPreOrder(node->left);
         printPreOrder(node->right);
     }
@@ -130,26 +154,36 @@ int main()
         Espaçar a fila em arvóres.
     */
     int frequencia[256]; // Array para armazenar a frequência de cada byte.
-    leFrequencia(frequencia);
+    char minhaString[30];
+    scanf("%s", minhaString); // Lê o nome do arquivo pelo usuário.
+    leFrequencia(frequencia, minhaString);
 
     struct priority_queue *pq = create_priority_queue(); // Criando a fila de prioridade.
 
     for (int x = 0; x < 256; x++)
         if (frequencia[x] != 0) enqueue(pq, x, frequencia[x]); // Adiciona o byte e sua frequência na fila de prioridade.
-    printf("\n");
-
+    
     while(pq->head->next != NULL){ // Espaçando a fila de prioridade em arvóres.
         struct node *left = dequeue(pq);
         struct node *right = dequeue(pq);
         // s {1}
         struct node *new_node = (struct node *)malloc(sizeof(struct node));
-        new_node->item = -1; // * = -1;
+        new_node->item = '*'; // * = -1;
         new_node->priority = left->priority + right->priority;
         new_node->left = left;
         new_node->right = right;
         enqueueWithNode(pq, new_node);
     }
     // Teoricamente espaçei a fila de prioridade em arvóres.
-    printPreOrder(pq->head);
+    
+
+    FILE *file = fopen(minhaString, "rb"); // Lê os bits do arquivo, 'rb' -> Read Binary
+    unsigned char byte;
+    while (fscanf(file, "%c", &byte) != EOF)
+    { // Lendo todo o arquivo até o seu final e armazenando a frequência no array.
+        char newBinary[9] = { '\0' };
+        printNewBinary(pq->head, byte, newBinary);
+    }
+    
     return 0;
 }
