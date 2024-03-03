@@ -3,9 +3,16 @@
 #include <math.h>
 #include <stdlib.h>
 
-struct node
+// Estruturas de Dados
+
+struct defaultNode
 {
     int item;
+    struct defaultNode *next;
+};
+struct node
+{
+    unsigned char item;
     int priority;
     struct node *next;
     struct node *left;
@@ -15,11 +22,24 @@ struct priority_queue
 {
     struct node *head;
 };
-void removeLastChar(char *s)
-{
-    int len = strlen(s);
-    s[len - 1] = '\0';
+
+// Linked List Functions
+
+struct defaultNode* createDefaultNode(struct defaultNode *node, int item){
+    struct defaultNode *new_node = (struct defaultNode *)malloc(sizeof(struct defaultNode));
+    new_node->next = node;
+    new_node->item = item;
+    return new_node;
 }
+void removeDefaultNode(struct defaultNode *node){
+    struct defaultNode *aux = node;
+    node = node->next;
+    free(aux);
+}
+
+
+// Priority Queue Functions
+
 struct priority_queue *create_priority_queue()
 {
     struct priority_queue *new_priority_queue = (struct priority_queue *)malloc(sizeof(struct priority_queue));
@@ -30,7 +50,7 @@ int is_empty(struct priority_queue *pq)
 {
     return (pq->head == NULL);
 }
-void enqueue(struct priority_queue *pq, int item, int priority)
+void enqueue(struct priority_queue *pq, unsigned char item, int priority)
 {
     struct node *new_node = (struct node *)malloc(sizeof(struct node));
     new_node->item = item;
@@ -86,29 +106,54 @@ struct node *dequeue(struct priority_queue *pq)
         return node;
     }
 }
+
+//Funções do Huffman
+
 void printByteBinary(unsigned char byte)
 {
     // Loop para percorrer cada bit do byte
+    char binary[9] = { '\0' };
     for (int i = 7; i >= 0; i--)
     {
         // Desloca o bit mais significativo (MSB) para a direita por i posições
         // e verifica se o resultado AND com 1 é igual a 1
         // Isso verifica se o bit na posição i é 1 ou 0
-        printf("%d", (byte >> i) & 1);
+        binary[7 - i] = (byte >> i) & 1 ? '1' : '0';
+    }
+    
+    printf("%s ", binary);
+}
+void searchNewBinary(struct node *tree, int byte, struct defaultNode *nodeBinary){
+    
+    if(tree != NULL){
+        if(tree->item == byte){
+            FILE *file = fopen("bytes.txt", "a");
+            writeNewByte(nodeBinary, file);
+            fclose(file);
+            return;
+        } // Retornando o caminho até a folha que representa o byte.
+        else{
+            searchNewBinary(tree->left, byte, createDefaultNode(nodeBinary, 0));
+            searchNewBinary(tree->right, byte, createDefaultNode(nodeBinary, 1));
+        }
+    }else removeDefaultNode(nodeBinary);
+    // Remove o ultimo elemento do caminho até adicionado.
+}
+void writeNewByte(struct defaultNode *node, FILE *file){
+    if(node == NULL) return;
+    writeNewByte(node->next, file);
+    fprintf(file, "%d", node->item);
+    free(node); // Volta limpando toda a lista.
+}
+void freeAllTree(struct node *tree){
+    if(tree != NULL){
+        freeAllTree(tree->left);
+        freeAllTree(tree->right);
+        free(tree);
     }
 }
 
-void printNewBinary(struct node *node, int byte, char *newBinary){
-    if(node != NULL){
-        if(node->item == byte) printf("%s", newBinary); // Printando o novo binário.
-        else{
-            printNewBinary(node->left, byte, strcat(newBinary, "0"));
-            printNewBinary(node->right, byte, strcat(newBinary, "1"));
-            removeLastChar(newBinary); // Remove o último caracter visto que ele já foi verificado.
-        }
-    }else removeLastChar(newBinary); // Tirar o último caracter do char que foi adicionado, visto que ele se refere a um nó NULO.
-    
-}
+
 void leFrequencia(int *array, char *minhaString)
 {
 
@@ -128,24 +173,7 @@ void leFrequencia(int *array, char *minhaString)
 
     fclose(file); // Fecha o arquivo.
 }
-void printPreOrder(struct node *node)
-{
-    // Dado um nó, ao chegar na arvore imprimir a sequencia nova de 0 e 1.
-    // Se left -> +0
-    // Se right -> +1
-    if (node != NULL)
-    {
-        
-        if(node->item != '*'){
-            printByteBinary(node->item);
-            printf(" %d\n", node->priority);
-        }else{
-            printf("* %d\n", node->priority);
-        }
-        printPreOrder(node->left);
-        printPreOrder(node->right);
-    }
-}
+
 int main()
 {
     /*
@@ -166,9 +194,8 @@ int main()
     while(pq->head->next != NULL){ // Espaçando a fila de prioridade em arvóres.
         struct node *left = dequeue(pq);
         struct node *right = dequeue(pq);
-        // s {1}
         struct node *new_node = (struct node *)malloc(sizeof(struct node));
-        new_node->item = '*'; // * = -1;
+        new_node->item = '*';
         new_node->priority = left->priority + right->priority;
         new_node->left = left;
         new_node->right = right;
@@ -176,14 +203,14 @@ int main()
     }
     // Teoricamente espaçei a fila de prioridade em arvóres.
     
-
     FILE *file = fopen(minhaString, "rb"); // Lê os bits do arquivo, 'rb' -> Read Binary
     unsigned char byte;
     while (fscanf(file, "%c", &byte) != EOF)
-    { // Lendo todo o arquivo até o seu final e armazenando a frequência no array.
-        char newBinary[9] = { '\0' };
-        printNewBinary(pq->head, byte, newBinary);
-    }
+    // Lendo todo o arquivo até o seu final e armazenando a frequência no array.
+        searchNewBinary(pq->head, byte, NULL);
+
+    freeAllTree(pq->head);
+    free(pq);
     
     return 0;
 }
