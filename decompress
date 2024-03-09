@@ -1,0 +1,390 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+
+typedef struct node {
+    void* byte;
+    int frequencia;
+    struct node* next;
+    struct node* left;
+    struct node* right;
+} NODE;
+
+typedef struct tree {
+    NODE* raiz;
+} TREE;
+
+void gerar_arquivo(FILE *arquivo)
+{
+    /////////////////////////////gerar arquivo de teste////////////////////////////////////
+    
+    arquivo = fopen("arquivo.bin", "wb");
+    if (arquivo == NULL) {
+        perror("Erro ao criar o arquivo");
+        return;
+    }
+
+    // Escreve o primeiro byte com os primeiros bits sendo "10100000"
+    unsigned char byte1 = 0xA0;
+    if ( fwrite(&byte1, sizeof(unsigned char), 1, arquivo) != 1) {
+        perror("Erro ao escrever no arquivo");
+        fclose(arquivo);
+        return;
+    }
+
+    // Escreve o segundo byte com os bits restantes sendo "00001011"
+    unsigned char byte2 = 0x0B;
+    if (fwrite(&byte2, sizeof(unsigned char), 1, arquivo) != 1) {
+        perror("Erro ao escrever no arquivo");
+        fclose(arquivo);
+        return;
+    }
+    
+    // Escreve os próximos bytes correspondentes a "**CB***FEDA"
+    const char *dados = "**CB***FEDA";
+    if (fwrite(dados, sizeof(char), 11, arquivo) != 11) {
+        perror("Erro ao escrever no arquivo");
+        fclose(arquivo);
+        return;
+    }
+
+    // Escreve os próximos bytes correspondentes a "11111111", "11110101", "01010100",
+    // "00000010", "11011011", "00110011", "00011111"
+    const char *bytes[] = { "11111111", "11110101", "01010100", "00000010", "11011011", "00110011", "00011111" };
+
+    for (int i = 0; i < 7; ++i) {
+        unsigned char buffer = 0; // Inicializa um buffer de 8 bits
+        for (int j = 0; j < 8; ++j) {
+            buffer |= (bytes[i][j] == '1' ? 1 : 0) << (7 - j);
+        }
+        if (fwrite(&buffer, sizeof(unsigned char), 1, arquivo) != 1) {
+            perror("Erro ao escrever no arquivo");
+            fclose(arquivo);
+            return;
+        }
+    }
+
+    // Fecha o arquivo pra teste
+    fclose(arquivo);
+
+    printf("arquivo.bin gerado com sucesso.\n");
+
+    //////////////////////////////////////////////////////////////////////////////////
+}
+
+//le um byte de um arquivo de onde parou a ultima leitura ate o arquivo ser fechado
+//retorna o byte se deu tudo certo
+//se nao, retorna -1 como sendo um valor especial para indicar erro
+//caractere especial eh verificado na chamada da funcao;
+unsigned char ler_byte(FILE* arquivo)
+{
+    unsigned char byte;
+
+    if (fread(&byte, sizeof(unsigned char), 1, arquivo) != 1) {
+        printf("Erro ao ler o byte do arquivo\n");
+        return (unsigned char)-1; // Retorna um valor especial para indicar erro
+    }
+
+    return byte;
+}
+
+//pega um arquivo e armazena o valor dos 3 primeiros bits como tamanho do
+//lixo e armazena o valor dos outros 13 bits como tamanho da arvore
+//armazena os valores em um array de inteiros
+void analisar_header(FILE* arquivo, int tam_lixo_arvore[] )
+{
+    unsigned char byte1, byte2;
+    int tam_lixo, tam_arvore;
+
+    //Le o primeiro byte do arquivo e armazena o valor em decimal na variavel byte1
+    byte1 = ler_byte(arquivo);
+
+    if (byte1 == (unsigned char)-1) { //verifica se houve erro na leitura
+        printf("Erro ao ler o primeiro byte do arquivo\n");
+        return;
+    }
+
+    // Extrai o valor dos primeiros 3 bits do primeiro byte
+    tam_lixo = byte1 >> 5;
+
+    // Le o segundo byte do arquivo
+    byte2 = ler_byte(arquivo);
+
+    if (byte2 == (unsigned char)-1) { //verifica se houve erro na leitura
+        printf("Erro ao ler o segundo byte do arquivo\n");
+        return;
+    }
+
+    // Extrai o valor dos 5 bits restantes do primeiro byte e os 8 bits do segundo byte
+    tam_arvore = ( (byte1 & 0x1F) << 8) | byte2; //ve os cinco primeiros, bota 8 posicoes mais pra direita, e adiciona os outros 8. 13 bits no total
+
+    tam_lixo_arvore[0] = tam_lixo;
+    tam_lixo_arvore[1] = tam_arvore;
+
+    return;
+}
+
+//imprimir um byte unsigned char em formato binario
+void imprimirBinario(unsigned char byte)
+{
+    for (int i = 7; i >= 0; i--) {
+        printf("%d", (byte >> i) & 1);
+    }
+    printf("\n");
+}
+
+//Funcao para ler a arvore do arquivo e armazenar em uma string de unsigned char
+//continua a leitura do arquivo a partir do terceiro byte
+//as primeiras duas leituras dos bytes do 'arquivo' ja foram feitas em
+//outras funcoes e o arquivo ainda nao foi closed, por isso, o ponteiro
+//arquivo ja se encontra no terceiro byte
+void lerArvore(FILE *arquivo, int tam_arvore, unsigned char tree_bytes[] )
+{
+    int contador = 0; // Contador de bytes da arvore lidos
+    unsigned char byte;
+
+    // Le os bytes do arquivo tam_arvore vezes
+    while (contador < tam_arvore) 
+    {    
+        byte = ler_byte(arquivo);
+
+        if (byte == (unsigned char)-1) { //verifica se houve erro na leitura
+            printf("Erro ao ler o primeiro byte do arquivo\n");
+            return;
+        }
+
+        tree_bytes[contador] = byte;
+
+        // Processa o byte lido (substitua esta l0gica pela construcao da arvore)
+        printf("Byte lido: %u; em binario: ", byte);
+        imprimirBinario(byte);
+
+        // Incrementa o contador de bytes lidos
+        contador++;
+    }
+    //contador igual a tam_arvore
+
+    tree_bytes[contador] = '\0';
+}
+
+TREE* create_tree()
+{
+    TREE* new_tree = (TREE *)malloc( sizeof(TREE) );
+    new_tree->raiz = NULL;
+
+    return new_tree;
+}
+
+NODE* create_node(void* byte, int freq, NODE* next, NODE* left, NODE* right)
+{
+    NODE* new_node = (NODE *)malloc( sizeof(NODE) );
+
+    new_node->byte = byte;
+    new_node->frequencia = freq;
+    new_node->next = next;
+    new_node->left = left;
+    new_node->right = right;
+
+    return new_node;
+}
+
+void free_nodes(NODE* r)
+{
+    if (r == NULL) {
+        return; // Se a raiz for NULL, não há nada para liberar
+    }
+    
+    // Libera os nos da subarvore esquerda
+    free_nodes(r->left);
+    // Libera os nos da subarvore direita
+    free_nodes(r->right);
+    
+    // Libera o proprio no raiz
+    free(r);
+}
+
+void imprimir_pre_ordem(NODE* raiz)
+{
+    if (raiz == NULL) {
+        return;
+    }
+
+    // Imprime o byte do nó atual
+    printf("%c ", *(unsigned char*)(raiz->byte) );
+
+    // Recursivamente imprime a subárvore esquerda
+    imprimir_pre_ordem(raiz->left);
+    // Recursivamente imprime a subárvore direita
+    imprimir_pre_ordem(raiz->right);
+}
+
+//funcao para montar a arvore em pre-ordem recebida pela string tree_bytes
+//dado um byte, a funcao cria um novo node de acordo com esse byte, e liga a raiz atual a esse novo node
+//lembre que a raiz atual pode ser qualquer ponteiro pra node presente na arvore, tanto a raiz da arvore quanto os left e right subsequentes
+//quando aparece um '*', a funcao eh chamada passando left e depois passando right, cada um sendo a raiz das subarvores left e right
+//toda vez que a funcao eh chamada, o index aumenta, pra percorrer os proximos itens da string
+//quando a funcao encontra '\' seguido de '\', o index aumenta duas vezes pra garantir a sequencia certa
+//quando so se encontra uma '\' seguida, a string eh alterada e recebe um '*' no lugar, (que eh adicionado na arvore como um no folha)
+int montar_arvore(NODE** r, unsigned char tree_bytes[], int index)
+{
+    if (tree_bytes[index] == '\0') { //verifica se a arvore eh vazia ou se chegou no fim da string
+        return index;
+    }    
+
+    if (tree_bytes[index] == '*')
+    {
+        void* byte = (void *)&tree_bytes[index];
+        *r = create_node(byte, -1, NULL, NULL, NULL);
+        index = montar_arvore(&(*r)->left, tree_bytes, index + 1); //chama a funcao pra esquerda e index recebe valor final da subtree da esquerda
+        index = montar_arvore(&(*r)->right, tree_bytes, index + 1); //chama a funcao pra direita e index recebe valor final da subtree da direita
+        return index;
+    }
+    else if (tree_bytes[index] == '\\') //se o byte eh uma barra invertida
+    {
+        if (tree_bytes[index + 1] == '\\') //se o proximo byte tambem eh barra invertida
+        {
+            void* byte = (void *)&tree_bytes[index];
+            *r = create_node(byte, -1, NULL, NULL, NULL); //cria no com barra invertida
+            return index + 1;                       //retorna index + 1 se forem duas '\' seguidas
+        }
+        else //se o proximo byte nao eh barra invertida
+        {
+            //troca a barra invertida da string por um '*' e adiciona esse asterisco como sendo no folha
+            tree_bytes[index] = '*';
+            void* byte = (void *)&tree_bytes[index];
+            *r = create_node(byte, -1, NULL, NULL, NULL); //cria no com '*' sendo folha
+            return index;
+        }
+    }
+    else
+    {
+        void* byte = (void *)&tree_bytes[index];
+        *r = create_node(byte, -1, NULL, NULL, NULL);
+        return index;
+    }
+
+    //contador++
+        //se byte eh '*'
+            //chama ler pra esquerda e chama ler pra direita.
+        //se byte eh barra invertida
+            //verifica se tem outro byte pra ler
+            //le prox byte se tiver
+            //se o outro byte for barra invertida tambem (tem duas '\' seguidas)
+                //adiciona na arvore o barra invertida
+            //se nao for outra barra invertida
+                //ai eh pq eh pra adicionar um '*' como folha
+        //continua lendo se tiver mais bytes pra ler
+
+    return index;
+}
+
+void decompress()
+{
+    FILE *arquivo;
+
+    gerar_arquivo(arquivo); //gera um arquivo igual dos slides da aula so pra testar o codigo
+
+    unsigned char byte;
+    char nome_arquivo[100];
+
+    printf("nome do arquivo pra decompress:\n");
+    scanf("%99s", nome_arquivo);
+
+    // Abre o arquivo em modo de leitura binaria ('rb')
+    arquivo = fopen(nome_arquivo, "rb");
+
+    // Verifica se o arquivo foi aberto corretamente
+    if (arquivo == NULL) {
+        perror("Erro ao abrir o arquivo");
+        return;
+    }
+
+    /////////////////////////////////////////
+    //ARMAZENAR TAMANHO DO LIXO E DA ARVORE//
+    /////////////////////////////////////////
+    int tam_lixo_arvore[2]; //array pra armazenar os dois tamanhos
+
+    analisar_header(arquivo, tam_lixo_arvore);
+
+    int tam_lixo = tam_lixo_arvore[0];
+    int tam_arvore = tam_lixo_arvore[1];
+
+    printf("t lixo: %d\nt arv: %d\n", tam_lixo, tam_arvore);
+
+    ///////////////////////////////////
+    //ARMAZENAR A ARVORE EM PRE-ORDEM//
+    ///////////////////////////////////
+    unsigned char tree_bytes[tam_arvore + 1];
+
+    lerArvore(arquivo, tam_arvore, tree_bytes);
+
+    printf("pre-ordem %s\n", tree_bytes);
+
+    ///////////////////
+    //MONTAR A ARVORE//
+    ///////////////////
+    if (tam_arvore == 0) {
+        return;
+    }
+
+    //cria arvore se arquivo tem arvore e chama pra montar
+    //index pode ser considerado lixo porque nao vai servir pra muita coisa no decompress
+    TREE* tree = create_tree();
+    int index = montar_arvore(&tree->raiz, tree_bytes, 0);
+
+    imprimir_pre_ordem(tree->raiz);
+
+    /////////////////////////////////////////
+    //TRADUZIR O COMPACTADO PARA O ORIGINAL//
+    /////////////////////////////////////////
+
+
+
+
+    ////////////////////////////
+    //FINALIZA A DESCOMPRESSAO//
+    ////////////////////////////
+    free_nodes(tree->raiz);
+    free(tree);
+    // Fecha o arquivo
+    fclose(arquivo);
+
+    //pegar um arquivo comprimido
+    //analisar o header
+    //3 bits para tamanho do lixo
+    //13 bits para tamanho da arvore
+    //tam_arvore Bytes para a propria arvore
+    //bits do proprio arquivo ate chegar no lixo (tamanho_total - tamanho_lixo)
+
+    //percorre 3 bits pega tamanho_lixo
+    //percorre 13 bits pega tamanho_arvore
+    //percorre tamanho_arvore * 8 bits e armazena a arvore em pre-ordem
+    //monta a arvore armazenada
+    //percorre (tamanho_total - 3 - 13 - tam_arvore*8 - tam_lixo) bits
+    //pega um aux e vai da raiz da arvore
+    //repete:
+        //analisa um bit
+        //0 ou 1, aux vai pra esquerda ou direita
+        //se chegar em um no folha
+            //pega o byte da folha e coloca o byte no new_arquivo_origi
+            //volta aux pra raiz
+        //passa pro prox bit
+}
+
+int main() {
+
+    decompress();
+
+    int comando;
+    
+    printf("digite comando: 2-decompress\n");
+    scanf("%d", &comando);
+
+    if (comando == 2)
+    {
+        decompress();
+    }
+
+    return 0;
+}
